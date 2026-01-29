@@ -16,7 +16,7 @@ from sqlalchemy import text
 
 def fetch_stock_data(symbol, start_date, end_date):
     """Fetch stock data for a single symbol"""
-    print(f"  📥 Fetching {symbol}...", end=" ")
+    print(f"  📥 Fetching {symbol}...", end=" ", flush=True)
     
     try:
         stock = yf.Ticker(symbol)
@@ -42,7 +42,7 @@ def fetch_stock_data(symbol, start_date, end_date):
             'Volume': 'volume'
         })
         
-        # Add adj_close (same as close for now)
+        # Add adj_close
         df['adj_close'] = df['close']
         
         # Select only required columns
@@ -57,7 +57,7 @@ def fetch_stock_data(symbol, start_date, end_date):
         return None
 
 
-def load_to_database(df, table_name='bronze.stock_prices'):
+def load_to_database(df):
     """Load dataframe to database"""
     if df is None or df.empty:
         return 0
@@ -65,7 +65,6 @@ def load_to_database(df, table_name='bronze.stock_prices'):
     engine = get_db_engine()
     
     try:
-        # Use pandas to_sql with if_exists='append'
         df.to_sql(
             name='stock_prices',
             schema='bronze',
@@ -76,7 +75,7 @@ def load_to_database(df, table_name='bronze.stock_prices'):
         )
         return len(df)
     except Exception as e:
-        print(f"    ⚠️  Warning: {e}")
+        print(f"    ⚠️  Database error: {str(e)[:100]}")
         return 0
 
 
@@ -87,6 +86,7 @@ def fetch_all_stocks(symbols, start_date, end_date):
     print(f"{'='*60}")
     print(f"Symbols: {', '.join(symbols)}")
     print(f"Period: {start_date} to {end_date}")
+    print(f"Today: {datetime.now().strftime('%Y-%m-%d')}")
     print(f"{'='*60}\n")
     
     total_records = 0
@@ -97,13 +97,14 @@ def fetch_all_stocks(symbols, start_date, end_date):
         if df is not None:
             records = load_to_database(df)
             total_records += records
-            successful += 1
+            if records > 0:
+                successful += 1
     
     print(f"\n{'='*60}")
     print(f"✅ COMPLETE!")
     print(f"{'='*60}")
     print(f"Successfully fetched: {successful}/{len(symbols)} stocks")
-    print(f"Total records loaded: {total_records:,}")
+    print(f"New records added: {total_records:,}")
     print(f"{'='*60}\n")
 
 
@@ -112,8 +113,8 @@ if __name__ == "__main__":
     symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 
                'META', 'NVDA', 'JPM', 'V', 'WMT']
     
-    # Date range (5 years)
-    start_date = '2019-01-01'
-    end_date = '2024-12-31'
+    # Date range - from Dec 31, 2024 onwards to get missing data
+    start_date = '2024-12-31'
+    end_date = datetime.now().strftime('%Y-%m-%d')
     
     fetch_all_stocks(symbols, start_date, end_date)
